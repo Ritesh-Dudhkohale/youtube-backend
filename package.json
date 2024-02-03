@@ -1,0 +1,25 @@
+{
+  "name": "youtube-backend",
+  "version": "1.0.0",
+  "description": "This is youtube backend clone.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ritesh-Dudhkohale/youtube-backend.git"
+  },
+  "keywords": [
+    "javascript",
+    "youtube",
+    "backend",
+    "clone"
+  ],
+  "author": "Ritesh Dudhkohale",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Ritesh-Dudhkohale/youtube-backend/issues"
+  },
+  "homepage": "https://github.com/Ritesh-Dudhkohale/youtube-backend#readme"
+}
