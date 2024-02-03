@@ -23,5 +23,8 @@
   "bugs": {
     "url": "https://github.com/Ritesh-Dudhkohale/youtube-backend/issues"
   },
-  "homepage": "https://github.com/Ritesh-Dudhkohale/youtube-backend#readme"
+  "homepage": "https://github.com/Ritesh-Dudhkohale/youtube-backend#readme",
+  "dependencies": {
+    "prettier": "^3.2.4"
+  }
 }
