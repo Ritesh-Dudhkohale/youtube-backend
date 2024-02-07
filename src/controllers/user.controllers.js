@@ -144,7 +144,7 @@ const loginUser = asyncHandler(async (req, res) => {
 const logoutUser = asyncHandler(async (req, res) => {
     User.findByIdAndUpdate(
         req.user._id,
-        { $set: { refreshToken: undefined } },
+        { $unset: { refreshToken: 1 } },
         { new: true } //This will give updated value
     );
     const cookiesOptions = {
@@ -330,10 +330,10 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
                 isSubscribed: {
                     $cond: {
                         if: {
-                            $in: [req.user?._id, "$subscribers.subscriber"], // calculate using dusre ke scubscriber me mera bhi username hai to maine follow krke rkha hai aur subscribed hai flag bhej do
-                            then: true,
-                            else: false,
+                            $in: [req.user?._id, "$subscribers.subscriber"],
                         },
+                        then: true,
+                        else: false, // calculate using dusre ke scubscriber me mera bhi username hai to maine follow krke rkha hai aur subscribed hai flag bhej do
                     },
                 },
             },

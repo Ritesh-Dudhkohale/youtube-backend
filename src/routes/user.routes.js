@@ -8,6 +8,8 @@ import {
     registerUser,
     updateUserImage,
     updateUserDetails,
+    getUserChannelProfile,
+    getWatchHistory,
 } from "../controllers/user.controllers.js";
 import { upload } from "../middleware/multer.middleware.js";
 import { verifyJWT } from "../middleware/auth.middleware.js";
@@ -29,13 +31,30 @@ router.route("/login").post(loginUser);
 
 //secured routes
 //This is another way to stack up middleware to specific endpoint/routes
-router.route("/logout").post(verifyJWT, logoutUser);
-router.route("/refresh-token").post(verifyJWT, refreshAccessToken);
-router.route("/change-password").patch(verifyJWT, changeCurrentPassword);
-router.route("/get-user").get(verifyJWT, getCurrentUser);
-router.route("/update-details").patch(verifyJWT, updateUserDetails);
+router
+    .route("/logout")
+    .post(verifyJWT, logoutUser);
+router
+    .route("/refresh-token")
+    .post(verifyJWT, refreshAccessToken);
+router
+    .route("/change-password")
+    .patch(verifyJWT, changeCurrentPassword);
+router
+    .route("/current-user")
+    .get(verifyJWT, getCurrentUser);
+router
+    .route("/update-details")
+    .patch(verifyJWT, updateUserDetails);
 router
     .route("/update-image")
-    .patch(verifyJWT, upload.single("avatar"), updateUserImage);
+    .patch(verifyJWT, 
+        upload.single("image"), updateUserImage);
+router
+    .route("/channel/:username")
+    .get(verifyJWT, getUserChannelProfile);
+router
+    .route("/watch-history")
+    .get(verifyJWT, getWatchHistory);
 
 export default router;
