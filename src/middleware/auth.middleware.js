@@ -4,7 +4,7 @@ import asyncHandler from "../utils/asyncHandler.js";
 import { User } from "../models/user.model.js";
 
 export const verifyJWT = asyncHandler(async (req, res, next) => {
-    // This middleware is used for making the user stateful in all routes
+    // This middleware is used for making the user statefull in all routes
     const token =
         req.cookies?.accessToken ||
         req.header("Authorization")?.replace("Bearer ", "");
@@ -14,7 +14,7 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
     const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
     
 
-    const user = await User.find({_id:decodedToken?._id})
+    const user = await User.findOne({_id:decodedToken?._id})
         .select("-password -refreshToken")
         .orFail(() => {
             throw new ApiError(401, "Invalid Access Token");
