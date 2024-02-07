@@ -1,9 +1,13 @@
 import asyncHandler from "../utils/asyncHandler.js";
 import ApiError from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
-import { uploadOnCloudinary } from "../utils/cloudinaryFileupload.js";
+import {
+    deleteOncloudinary,
+    uploadOnCloudinary,
+} from "../utils/cloudinaryFileupload.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
+import { Schema } from "mongoose";
 
 const registerUser = asyncHandler(async (req, res) => {
     /*
@@ -81,6 +85,7 @@ const generateAccessAndRefreshTokens = async (userId) => {
         console.log(error);
     }
 };
+
 const loginUser = asyncHandler(async (req, res) => {
     /*
     0) lock all the endpoints
@@ -110,7 +115,7 @@ const loginUser = asyncHandler(async (req, res) => {
         userExists._id
     );
 
-    const loggedInUser = await User.findOne(userExists._id).select(
+    const loggedInUser = await User.findOne(userExists?._id).select(
         "-password -refreshToken"
     );
 
@@ -196,4 +201,232 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
         );
 });
 
-export { registerUser, loginUser, logoutUser ,refreshAccessToken};
+const changeCurrentPassword = asyncHandler(async (req, res) => {
+    const { oldPassword, newPassword } = req.body;
+    //if user have confPassword then we need to get confirm password and compare with new password and then proceed
+
+    const existingUser = await User.findById(req.user?._id);
+
+    const isPasswordCorrect = await existingUser.isPasswordCorrect(oldPassword);
+
+    if (!isPasswordCorrect) throw new ApiError(400, "Invalid old password!!!");
+
+    existingUser.password = newPassword;
+
+    const updatedUser = await user.save({ validateBeforeSave: false });
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                updatedUser,
+                "Password changed successfully..."
+            )
+        );
+});
+
+//updating text data
+const updateUserDetails = asyncHandler(async (req, res) => {
+    const { fullName, email } = req.body;
+
+    if (!fullName || !email)
+        throw new ApiError(400, "Fullname and email is required!!!");
+
+    await User.findByIdAndUpdate(
+        req.user?._id,
+        {
+            $set: { fullName, email: email },
+        },
+        { new: true } //updated user will returned
+    ).select("-password");
+
+    return res.status(200).json(200, user, "updated user...");
+});
+
+//updating file data
+const updateUserImage = asyncHandler(async (req, res) => {
+    const { fieldName } = req.body;
+
+    if (!["avatar", "coverImage"].includes(fieldName))
+        throw new ApiError(400, "Invalid field name");
+    const avatarLocalPath = req.file?.path;
+    if (!avatarLocalPath) throw new ApiError(400, "Avatar file is required!!!");
+
+    const oldAvatarUrl = req.user?.[fieldName]; //always use sqaure bracket for dynamic fieldname
+
+    const newAvatar = await uploadOnCloudinary(avatarLocalPath);
+
+    if (!newAvatar.url)
+        throw new ApiError(
+            500,
+            "Error while uploading Avatar Image on cloudinary"
+        );
+    const updateFieldAndValue = {
+        [fieldName]: newAvatar?.url,
+    };
+    const updatedUser = await User.findByIdAndUpdate(
+        req.user?._id,
+        { $set: updateFieldAndValue },
+        { new: true }
+    ).select("-password -refreshToken -accessToken");
+
+    const oldAvatarResponse = await deleteOncloudinary(oldAvatarUrl);
+    return res
+        .status(200)
+        .json(new ApiResponse(200, updatedUser, `${fieldName} is updated`));
+});
+
+const getCurrentUser = asyncHandler(async (req, res) => {
+    const currentUser = req.user; //the auth.middleware is helping us,by verfiyJWT and assigning user to req.user
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, currentUser, "Follwing user is found..."));
+});
+
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+    const { username } = req.params;
+    if (!username) throw new ApiError(400, "username not found!!!");
+
+    /*
+        Below aggregate pipeline 
+        1) first we match user
+        2) then we count apko kisne subscribed kiya hai  (channel field ke through)
+        3) then we count apne kitno ko subscribe kiya hai (Subscriber field ke through)
+        4) then we add some field in original user object
+        5) then project kiya matlab pura object mat do itne hi bhejo
+    */
+    const channel = await User.aggregate([
+        {
+            $match: {
+                username: username?.toLowerCase(),
+            },
+        },
+        {
+            $lookup: {
+                from: "Subscription",
+                localField: "_id",
+                foreignField: "channel",
+                as: "subscribers",
+            },
+        },
+        {
+            $lookup: {
+                from: "Subscription",
+                localField: "_id",
+                foreignField: "subscriber",
+                as: "subscribedTo",
+            },
+        },
+        {
+            $addFields: {
+                subscribersCount: {
+                    $size: "$subscribers",
+                },
+                channerlSubscribedToCount: {
+                    $size: "$subscribedTo",
+                },
+                isSubscribed: {
+                    $cond: {
+                        if: {
+                            $in: [req.user?._id, "$subscribers.subscriber"], // calculate using dusre ke scubscriber me mera bhi username hai to maine follow krke rkha hai aur subscribed hai flag bhej do
+                            then: true,
+                            else: false,
+                        },
+                    },
+                },
+            },
+        },
+        {
+            $project: {
+                fullName: 1,
+                username: 1,
+                subscribersCount: 1,
+                channerlSubscribedToCount: 1,
+                isSubscribed: 1,
+                avatar: 1,
+                coverImage: 1,
+                email: 1,
+            },
+        },
+    ]);
+
+    if (!channel?.length) throw new ApiError(400, "channel does not exist!!!");
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                channel[0],
+                "user channel fetched successfully..."
+            )
+        );
+});
+
+const getWatchHistory = asyncHandler(async (req, res) => {
+    const user = await User.aggregate([
+        {
+            $match: {
+                _id: new Schema.Types.ObjectId(req.user?._id),
+            },
+        },
+        {
+            $lookup: {
+                from: "videos",
+                localField: "watchHistory",
+                foreignField: "_id",
+                as: "watchHistory",
+                pipeline: [
+                    {
+                        $lookup: {
+                            from: "users",
+                            localField: "owner",
+                            foreignField: "_id",
+                            as: "owner",
+                            pipeline: [
+                                {
+                                    $project: {
+                                        fullName: 1,
+                                        username: 1,
+                                        avatar: 1,
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                    {
+                        $addFields: {
+                            owner: {
+                                $first: "$owner",
+                            },
+                        },
+                    },
+                ],
+            },
+        },
+    ]);
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                user[0].watchHistory,
+                "watched history fetched successfully..."
+            )
+        );
+});
+
+export {
+    registerUser,
+    loginUser,
+    logoutUser,
+    refreshAccessToken,
+    changeCurrentPassword,
+    getCurrentUser,
+    updateUserDetails,
+    updateUserImage,
+    getUserChannelProfile,
+    getWatchHistory,
+};
